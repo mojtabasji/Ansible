@@ -1,0 +1,73 @@
+- name: Install Containerd as container runtime on clients
+  hosts: clients
+  vars_files:
+    - vault.yml
+  tasks:
+    - name: Check Ip route exists
+      command: 'ip route show default'
+      register: ip_route
+
+    - name: set Gateway IP
+      become: yes
+      command: 'sudo ip route add default via {{ gateway_ip }}'
+      when: '"default via" not in ip_route.stdout'
+
+    - name: run command to set GateWay IP from vars
+      become: yes
+      command: 'sudo ip route change default via {{ gateway_ip }}'
+      when: '"default via" in ip_route.stdout'
+
+    - name: Check DNS server
+      command: 'cat /etc/resolv.conf'
+      register: dns_server
+
+    - name: set DNS server
+      become: yes
+      command: 'echo -e "\nnameserver 8.8.8.8\nnameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf'
+      when: '"nameserver" not in dns_server.stdout'
+
+    - name: Change repositories to use local mirror
+      become: yes
+      copy:
+        src: /etc/apt/sources.list
+        dest: /etc/apt/sources.list
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Update package
+      become: yes
+
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    # - name: Download Containerd
+    #   get_url:
+    #     url: https://github.com/containerd/containerd/releases/download/v1.7.22/containerd-1.7.22-linux-amd64.tar.gz
+    #     dest: /tmp/containerd-1.7.22-linux-amd64.tar.gz
+
+    # - name: Extract Containerd
+    #   command: 'tar -xvf /tmp/containerd-1.7.22-linux-amd64.tar.gz -C /tmp/containerd-1.7.22'
+
+    # - name: Add Containerd service
+    #   become: yes
+    #   command: 'sudo cp /tmp/containerd-1.7.22/bin/* /usr/bin/'
+
+    - name: Install Containerd
+      become: yes
+      apt:
+        name: containerd
+        state: present
+
+    - name: enable and start containerd
+      become: yes
+      service:
+        name: containerd
+        enabled: yes
+        state: started
+
+
+
+
+    
