@@ -23,7 +23,7 @@
 
     - name: set DNS server
       become: yes
-      command: 'echo -e "\nnameserver 8.8.8.8\nnameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf'
+      command: 'echo -e "\nnameserver 178.22.122.100\nnameserver 185.51.200.2" | sudo tee -a /etc/resolv.conf'
       when: '"nameserver" not in dns_server.stdout'
 
     - name: Change repositories to use local mirror
@@ -67,6 +67,76 @@
         enabled: yes
         state: started
 
+    - name: Check directory exists
+      command: 'ls /etc/containerd'
+      register: containerd_dir
+
+    - name: create configuration directory
+      become: yes
+      command: 'sudo mkdir -p /etc/containerd'
+      when: containerd_dir.stdout == ''
+
+    - name: Configure containerd
+      become: yes
+      command: 'sudo containerd config default | sudo tee /etc/containerd/config.toml'
+
+    - name: Restart containerd
+      become: yes
+      service:
+        name: containerd
+        state: restarted
+
+    - name: Install some requirements
+      become: yes
+      apt:
+        name: apt-transport-https, ca-certificates, curl, gnupg, lsb-release
+        state: present
+
+    - name: check if kubernetes repository key exists
+      command: 'ls /etc/apt/keyrings/'
+      register: kubernetes_keyls 
+
+    - name: Add Kubernetes repository key
+      become: yes
+      command: 'curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg'
+      when: '"kubernetes-apt-keyring.gpg" not in kubernetes_keyls.stdout'
+
+    - name: Add Kubernetes repository
+      become: yes
+      ansible.builtin.lineinfile:
+        path: /etc/apt/sources.list.d/kubernetes.list
+        line: 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /'
+        create: yes
+        state: present
+
+    - name: Update package
+      become: yes
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Kubernetes
+      become: yes
+      apt:
+        name: kubelet, kubeadm, kubectl
+        state: present
+
+    - name: pin Kubernetes version
+      become: yes
+      command: 'sudo apt-mark hold kubelet kubeadm kubectl'
+
+    - name: enable and start kubelet
+      become: yes
+      service:
+        name: kubelet
+        enabled: yes
+        state: started
+
+
+
+
+    
+    
 
 
 
