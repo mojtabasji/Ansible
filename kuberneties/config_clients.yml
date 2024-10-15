@@ -96,10 +96,19 @@
       command: 'ls /etc/apt/keyrings/'
       register: kubernetes_keyls 
 
-    - name: Add Kubernetes repository key
-      become: yes
-      command: 'curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg'
+    - name: get Kubernetes repository key
+      command: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key -o /tmp/kubernetes-release.key
       when: '"kubernetes-apt-keyring.gpg" not in kubernetes_keyls.stdout'
+
+    - name: Add kuberneties repository key
+      become: yes
+      command: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes-release.key
+      when: '"kubernetes-apt-keyring.gpg" not in kubernetes_keyls.stdout'
+
+    - name: Clean up temporary GPG key file
+      file:
+        path: /tmp/kubernetes-release.key
+        state: absent
 
     - name: Add Kubernetes repository
       become: yes
